@@ -88,6 +88,15 @@ final class Store: ObservableObject {
         return BudgetEngine.nightlyReview(plan: plan, spentBefore: spent(from: plan.cycleStart, to: sod),
                                           spentToday: spent(from: sod, to: addDays(sod, 1)), today: sod)
     }
+    /// Banks often resend an OTP. Warn once per payment within two minutes.
+    private var lastOtp: (key: String, at: Date)?
+    func shouldWarnOtp(_ p: OtpPayment, now: Date = Date()) -> Bool {
+        let key = "\(p.amountPaise)|\(p.merchant ?? "")"
+        if let l = lastOtp, l.key == key, now.timeIntervalSince(l.at) < 120 { return false }
+        lastOtp = (key, now)
+        return true
+    }
+
     // MARK: credits (money coming in)
 
     /// The plan with credits the user put in the spend pool added. Every budget number comes from this.
@@ -108,10 +117,12 @@ final class Store: ObservableObject {
     }
 
     /// "Can I afford this?" against today's real numbers.
-    func afford(rupees: Int64, now: Date = Date()) -> AffordResult? {
-        guard let plan = effectivePlan, rupees > 0 else { return nil }
+    func afford(rupees: Int64, now: Date = Date()) -> AffordResult? { afford(paise: rupees * 100, now: now) }
+
+    func afford(paise: Int64, now: Date = Date()) -> AffordResult? {
+        guard let plan = effectivePlan, paise > 0 else { return nil }
         let sod = startOfDay(now)
-        return BudgetEngine.canIAfford(plan: plan, pricePaise: rupees * 100,
+        return BudgetEngine.canIAfford(plan: plan, pricePaise: paise,
                                        spentBefore: spent(from: plan.cycleStart, to: sod),
                                        spentToday: spent(from: sod, to: addDays(sod, 1)), today: sod)
     }

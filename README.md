@@ -31,6 +31,15 @@ When money comes into your account the app handles it by type:
 
 Logic: `Credits.swift` (+ refund detection in `SmsParser.swift`), tests in `CreditsTests`. Android not built yet.
 
+## Protective alerts (iOS first)
+- **80% warning:** when a spend takes you past 80% of today's budget you get one warning ("81% of today's budget used. ₹217 left. If it isn't important, hold off"). It fires once on crossing, then again if you reach 100% or go over. It replaces the normal spend alert, so you get one notification, not two.
+- **Payment OTP warning:** when an OTP for a payment arrives ("482913 is your OTP for txn of Rs.6,500 at Croma") the app warns you *before you approve it*: whether it fits today, how far over you would be, how much tomorrow's budget drops, or that it would dip into savings. If it matters, the message ends with "If it isn't important, don't enter the OTP."
+  - **Privacy:** the OTP code is never read, stored or shown. Only the amount and merchant are used and the message is discarded. An OTP is not counted as spending; only the later debit SMS is.
+  - **Ignored:** OTPs without a payment amount (logins, etc.) do nothing. A resent OTP warns once per two minutes.
+  - **iOS setup:** Shortcuts → Automation → New → **Message** → Message Contains `OTP` → action **Check Payment OTP** (Message = *Shortcut Input*) → Run Immediately, Notify When Run off. This is separate from the "debited" automation.
+
+Logic: `Alerts.swift` and `parseOtpPayment` in `SmsParser.swift`; tests in `AlertTests`. Android not built yet.
+
 ## How the budget works
 1. Salary lands (last day of month) → app asks **how much you want to save** (and optional fixed bills).
 2. `pool = salary − savings − fixed`, `daily = pool ÷ days until next payday`.

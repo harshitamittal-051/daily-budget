@@ -13,6 +13,12 @@ public struct ParsedTxn: Equatable {
     public var isRefund: Bool = false
 }
 
+/// A payment that is waiting for an OTP. Deliberately has no field for the OTP itself.
+public struct OtpPayment: Equatable {
+    public var amountPaise: Int64
+    public var merchant: String?
+}
+
 public func rupeeString(_ paise: Int64) -> String {
     let neg = paise < 0
     let absV = paise < 0 ? -paise : paise

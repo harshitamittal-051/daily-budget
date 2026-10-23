@@ -18,10 +18,32 @@ public enum SmsParser {
     private static let refundRe = rx(#"\b(refund(?:ed)?|reversal|reversed|chargeback)\b"#)
     private static let notMerchant: Set<String> = ["a/c", "ac", "account", "your", "you", "card", "bank", "self"]
 
-    public static func parse(_ body: String, at time: Date = Date()) -> ParsedTxn? {
-        let text = body.replacingOccurrences(of: "\n", with: " ")
+    private static func normalize(_ body: String) -> String {
+        body.replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespaces)
+    }
+
+    private static let otpRe = rx(#"\b(otp|one[- ]time password|verification code|authori[sz]e|authentication code)\b"#)
+    private static let payWordsRe = rx(#"\b(txn|transaction|payment|purchase|pay|debit|spend|order|checkout)\b"#)
+
+    /// A payment OTP such as "482913 is your OTP for txn of Rs.500 at Amazon". Only the amount and the
+    /// merchant are returned. The OTP digits are never extracted, stored or shown.
+    public static func parseOtpPayment(_ body: String) -> OtpPayment? {
+        let text = normalize(body)
+        guard has(otpRe, text), has(payWordsRe, text),
+              let m = amountRe.firstMatch(in: text, range: full(text)), let amtStr = group(m, 1, text),
+              let amount = toPaise(amtStr), amount > 0, let whole = Range(m.range, in: text) else { return nil }
+        let after = String(text[whole.upperBound...])      // merchant comes after the amount
+        var merchant: String?
+        for t in targetRe.matches(in: after, range: full(after)) {
+            if let g = group(t, 1, after), let c = clean(g) { merchant = c; break }
+        }
+        return OtpPayment(amountPaise: amount, merchant: merchant)
+    }
+
+    public static func parse(_ body: String, at time: Date = Date()) -> ParsedTxn? {
+        let text = normalize(body)
         if has(rejectWords, text) { return nil }
 
         guard let m = amountRe.firstMatch(in: text, range: full(text)), let amtStr = group(m, 1, text),

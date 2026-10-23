@@ -161,3 +161,62 @@ final class CreditsTests: XCTestCase {
         XCTAssertEqual(BudgetEngine.dayBudget(plan: plan.withExtraPool(rs(4000)), spentBefore: rs(10000), spentToday: 0, today: day).allowancePaise, rs(1200))
     }
 }
+
+final class AlertTests: XCTestCase {
+    func d(_ y: Int, _ m: Int, _ day: Int) -> Date { Calendar(identifier: .gregorian).date(from: DateComponents(year: y, month: m, day: day))! }
+    func rs(_ n: Int64) -> Int64 { n * 100 }
+    var plan: Plan { Plan(salaryPaise: rs(60000), savingsGoalPaise: rs(10000), fixedExpensesPaise: rs(20000), cycleStart: d(2025, 9, 30), cycleEnd: d(2025, 10, 30)) }
+    func warn(_ price: Int64, today: Int64 = 0, merchant: String? = "Amazon") -> PaymentWarning {
+        let r = BudgetEngine.canIAfford(plan: plan, pricePaise: rs(price), spentBefore: 0, spentToday: rs(today), today: d(2025, 9, 30))
+        return BudgetEngine.paymentWarning(r, merchant: merchant)
+    }
+
+    func testOtpWithAmountAndMerchant() throws {
+        let o = try XCTUnwrap(SmsParser.parseOtpPayment("482913 is your OTP for txn of Rs.500.00 at Amazon. Do not share with anyone."))
+        XCTAssertEqual(o.amountPaise, 50000); XCTAssertEqual(o.merchant, "Amazon")
+    }
+    func testOtpAuthorisePaymentTo() throws {
+        let o = try XCTUnwrap(SmsParser.parseOtpPayment("Use OTP 551122 to authorise payment of Rs 1,299 to FLIPKART INTERNET. Valid for 10 min"))
+        XCTAssertEqual(o.amountPaise, 129900); XCTAssertEqual(o.merchant, "Flipkart Internet")
+    }
+    func testOtpWithoutAmountOrPaymentIsIgnored() {
+        XCTAssertNil(SmsParser.parseOtpPayment("123456 is your OTP for login. Do not share."))
+        XCTAssertNil(SmsParser.parseOtpPayment("Rs 500 debited from a/c XX1234 to VPA swiggy@icici"))
+        XCTAssertNil(SmsParser.parse("482913 is your OTP for txn of Rs.500.00 at Amazon. Do not share with anyone."))
+    }
+    func testLimitLevels() {
+        XCTAssertEqual(BudgetEngine.limitLevel(spentTodayPaise: rs(799), allowancePaise: rs(1000)), .none)
+        XCTAssertEqual(BudgetEngine.limitLevel(spentTodayPaise: rs(800), allowancePaise: rs(1000)), .eighty)
+        XCTAssertEqual(BudgetEngine.limitLevel(spentTodayPaise: rs(1000), allowancePaise: rs(1000)), .hundred)
+    }
+    func testEightyPercentAlertFiresOnceOnCrossing() throws {
+        let a = try XCTUnwrap(BudgetEngine.limitAlert(allowancePaise: rs(1000), spentTodayPaise: rs(810), justSpentPaise: rs(20)))
+        XCTAssertEqual(a.level, .eighty); XCTAssertTrue(a.title.hasPrefix("81%"))
+        XCTAssertNil(BudgetEngine.limitAlert(allowancePaise: rs(1000), spentTodayPaise: rs(850), justSpentPaise: rs(40)))   // already past 80
+        XCTAssertNil(BudgetEngine.limitAlert(allowancePaise: rs(1000), spentTodayPaise: rs(500), justSpentPaise: rs(100)))  // nowhere near
+    }
+    func testHundredPercentAlertAndOverspend() throws {
+        let used = try XCTUnwrap(BudgetEngine.limitAlert(allowancePaise: rs(1000), spentTodayPaise: rs(1000), justSpentPaise: rs(150)))
+        XCTAssertEqual(used.level, .hundred); XCTAssertEqual(used.title, "Today's budget is used up")
+        let over = try XCTUnwrap(BudgetEngine.limitAlert(allowancePaise: rs(1000), spentTodayPaise: rs(1100), justSpentPaise: rs(1100)))
+        XCTAssertEqual(over.title, "Over today's budget"); XCTAssertTrue(over.body.contains("₹100 over"))
+        XCTAssertNil(BudgetEngine.limitAlert(allowancePaise: rs(1000), spentTodayPaise: rs(1200), justSpentPaise: rs(200)))  // already over
+    }
+    func testWarningFitsComfortably() {
+        let w = warn(400)
+        XCTAssertEqual(w.severity, .info); XCTAssertTrue(w.body.contains("Go ahead"))
+    }
+    func testWarningFitsButUsesMostOfToday() {
+        let w = warn(350, today: 500)       // 850 of 1,000 = 85%
+        XCTAssertEqual(w.severity, .caution); XCTAssertTrue(w.body.contains("85%")); XCTAssertTrue(w.body.contains("don't enter the OTP"))
+    }
+    func testWarningOverToday() {
+        let w = warn(1500)
+        XCTAssertEqual(w.severity, .caution); XCTAssertTrue(w.body.contains("over today's budget")); XCTAssertTrue(w.body.contains("don't enter the OTP"))
+        XCTAssertTrue(w.title.contains("₹1,500") && w.title.contains("Amazon"))
+    }
+    func testWarningTouchesSavings() {
+        let w = warn(31000, merchant: nil)
+        XCTAssertEqual(w.severity, .alert); XCTAssertTrue(w.body.contains("savings goal")); XCTAssertFalse(w.title.contains(" at "))
+    }
+}

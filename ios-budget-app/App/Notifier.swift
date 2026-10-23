@@ -60,12 +60,31 @@ enum Notifier {
     static func alertSpend(_ t: Txn, store: Store) async {
         guard t.isDebit, t.countsTowardBudget, let d = store.today() else { return }
         let left = d.leftTodayPaise
-        let body = left >= 0 ? "\(rupeeString(left)) left of today's \(rupeeString(d.allowancePaise))."
-                             : "Over today's budget by \(rupeeString(-left))."
+        let spend = "\(rupeeString(t.amountPaise)) → \(t.merchant ?? "Unknown") (\(t.category))"
         let c = UNMutableNotificationContent()
-        c.title = "\(rupeeString(t.amountPaise)) → \(t.merchant ?? "Unknown") (\(t.category))"; c.body = body; c.sound = .default
+        c.sound = .default
+        // Crossing 80% or 100% of today's budget turns the spend alert into a warning (one notification, not two).
+        if let limit = BudgetEngine.limitAlert(allowancePaise: d.allowancePaise, spentTodayPaise: d.spentTodayPaise, justSpentPaise: t.amountPaise) {
+            c.title = limit.title
+            c.body = "\(spend). \(limit.body)"
+        } else {
+            c.title = spend
+            c.body = left >= 0 ? "\(rupeeString(left)) left of today's \(rupeeString(d.allowancePaise))."
+                               : "Over today's budget by \(rupeeString(-left))."
+        }
         try? await UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)))
+    }
+
+    /// A payment OTP just arrived: tell the user what the payment would do to today, before they approve it.
+    @MainActor
+    @discardableResult
+    static func alertPayment(_ warning: PaymentWarning) async -> PaymentWarning {
+        let c = UNMutableNotificationContent()
+        c.title = warning.title; c.body = warning.body; c.sound = .default
+        try? await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)))
+        return warning
     }
 
     /// Money came in. Refunds go straight back to the pool; anything else asks where it should go.

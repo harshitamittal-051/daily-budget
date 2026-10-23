@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import DailyBudgetCore
 
 /// The bridge that replaces SMS access on iOS. A Shortcuts *Personal Automation*
 /// ("When I get a message containing 'debited'") runs this action with the message text.
@@ -19,6 +20,26 @@ struct AddTransactionFromMessageIntent: AppIntent {
         await Notifier.reschedule(store)
         if t.isDebit { await Notifier.alertSpend(t, store: store) } else { await Notifier.alertCredit(t, store: store) }
         return .result(dialog: "Logged.")
+    }
+}
+
+/// Shortcuts automation: "When I get a message containing OTP" -> this action. It reads only the amount and
+/// merchant, warns before the payment is approved, and discards the message. The OTP code is never read or stored.
+struct CheckPaymentOtpIntent: AppIntent {
+    static var title: LocalizedStringResource = "Check Payment OTP"
+    static var description = IntentDescription("Warns you if a payment OTP is for an amount that would hurt today's budget.")
+
+    @Parameter(title: "Message") var message: String
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let store = Store.shared
+        guard let otp = SmsParser.parseOtpPayment(message),
+              let r = store.afford(paise: otp.amountPaise) else { return .result(dialog: "No payment amount in that message.") }
+        guard store.shouldWarnOtp(otp) else { return .result(dialog: "Already warned.") }
+        let w = BudgetEngine.paymentWarning(r, merchant: otp.merchant)
+        await Notifier.alertPayment(w)
+        return .result(dialog: "\(w.body)")
     }
 }
 
