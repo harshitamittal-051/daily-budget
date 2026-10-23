@@ -83,6 +83,15 @@ final class Store: ObservableObject {
         return BudgetEngine.nightlyReview(plan: plan, spentBefore: spent(from: plan.cycleStart, to: sod),
                                           spentToday: spent(from: sod, to: addDays(sod, 1)), today: sod)
     }
+    /// "Can I afford this?" against today's real numbers.
+    func afford(rupees: Int64, now: Date = Date()) -> AffordResult? {
+        guard let plan, rupees > 0 else { return nil }
+        let sod = startOfDay(now)
+        return BudgetEngine.canIAfford(plan: plan, pricePaise: rupees * 100,
+                                       spentBefore: spent(from: plan.cycleStart, to: sod),
+                                       spentToday: spent(from: sod, to: addDays(sod, 1)), today: sod)
+    }
+
     var newSalary: Txn? { plan.flatMap { p in txns.first { $0.isSalary && $0.time > p.cycleStart.addingTimeInterval(60) } } }
 
     func byCategory() -> [(String, Int64)] {

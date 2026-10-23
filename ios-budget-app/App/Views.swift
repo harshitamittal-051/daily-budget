@@ -63,6 +63,7 @@ struct DashboardView: View {
             if store.newSalary != nil || (store.plan.map { Date() >= $0.cycleEnd } ?? false) {
                 Button("New salary detected — tap to plan the new month", action: onNewMonth)
             }
+            AffordCard()
             if let d = store.today() {
                 Section("Today's budget") {
                     Text(rupeeString(d.allowancePaise)).font(.system(size: 36, weight: .bold))

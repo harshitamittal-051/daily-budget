@@ -10,6 +10,16 @@ and tells you every morning what you can spend, every night how you did, and whe
 
 Both share the same logic, ported 1:1 and covered by the same tests: SMS parser, merchant categorizer, budget engine.
 
+## Headline feature: "Can I afford this?"  (iOS first)
+Type a price and get a straight answer from your live budget, before you pay:
+- **Yes, go ahead**: fits what is left of today.
+- **Yes, but it costs you tomorrow**: over today's budget, so tomorrow's drops (e.g. ₹1,034.48 → ₹982.75, ₹51.73 less a day for 29 days).
+- **Not without touching savings**: would push the month below your savings goal; shows how much it would take out.
+
+It also says how many days of your daily budget the price equals. On iOS you can ask Siri:
+*"Can I afford something in Daily Budget?"* and it asks the price and answers out loud (also available as a Shortcuts action).
+Logic: `ios-budget-app/Sources/DailyBudgetCore/Afford.swift` (tests in `AffordTests`). The Android version is not built yet.
+
 ## How the budget works
 1. Salary lands (last day of month) → app asks **how much you want to save** (and optional fixed bills).
 2. `pool = salary − savings − fixed`, `daily = pool ÷ days until next payday`.

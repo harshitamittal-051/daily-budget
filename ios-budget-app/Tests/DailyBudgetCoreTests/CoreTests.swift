@@ -74,3 +74,52 @@ final class BudgetEngineTests: XCTestCase {
         XCTAssertEqual(BudgetEngine.nextPayday(after: d(2025, 1, 29)), d(2025, 2, 28))
     }
 }
+
+final class AffordTests: XCTestCase {
+    func d(_ y: Int, _ m: Int, _ day: Int) -> Date { Calendar(identifier: .gregorian).date(from: DateComponents(year: y, month: m, day: day))! }
+    func rs(_ n: Int64) -> Int64 { n * 100 }
+    // Pool 30,000 over 30 days = 1,000 a day.
+    var plan: Plan { Plan(salaryPaise: rs(60000), savingsGoalPaise: rs(10000), fixedExpensesPaise: rs(20000), cycleStart: d(2025, 9, 30), cycleEnd: d(2025, 10, 30)) }
+    func a(_ price: Int64, today: Int64 = 0, before: Int64 = 0, day: Date? = nil) -> AffordResult {
+        BudgetEngine.canIAfford(plan: plan, pricePaise: rs(price), spentBefore: rs(before), spentToday: rs(today), today: day ?? d(2025, 9, 30))
+    }
+
+    func testFitsToday() {
+        let r = a(400)
+        XCTAssertEqual(r.verdict, .fitsToday); XCTAssertEqual(r.leftAfterPaise, rs(600))
+        XCTAssertTrue(r.summary.hasPrefix("Yes."))
+    }
+    func testExactlyTheRemainderStillFits() {
+        XCTAssertEqual(a(300, today: 700).verdict, .fitsToday)
+        XCTAssertEqual(a(301, today: 700).verdict, .stretch)
+    }
+    func testStretchShrinksTomorrow() {
+        let r = a(1500)
+        XCTAssertEqual(r.verdict, .stretch)
+        XCTAssertEqual(r.leftAfterPaise, rs(-500))
+        XCTAssertEqual(r.tomorrowNowPaise, 3_000_000 / 29)
+        XCTAssertEqual(r.tomorrowAfterPaise, 2_850_000 / 29)
+        XCTAssertEqual(r.cutPerDayPaise, 3_000_000 / 29 - 2_850_000 / 29)
+        XCTAssertEqual(r.tomorrowDaysLeft, 29)
+        XCTAssertEqual(r.budgetDays!, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(r.savingsDipPaise, 0)
+    }
+    func testWordingWhenTodayIsAlreadyUsedUp() {
+        let r = a(100, today: 1200)
+        XCTAssertEqual(r.verdict, .stretch)
+        XCTAssertTrue(r.summary.contains("already used up"))
+        XCTAssertFalse(r.summary.contains("more than you have left"))
+    }
+    func testEatsSavings() {
+        let r = a(31000)
+        XCTAssertEqual(r.verdict, .eatsSavings); XCTAssertEqual(r.savingsDipPaise, rs(1000))
+        XCTAssertTrue(r.summary.contains("savings"))
+    }
+    func testPoolAlreadyOverdrawnAlwaysEatsSavings() {
+        let r = a(100, before: 35000, day: d(2025, 10, 10))
+        XCTAssertEqual(r.allowanceTodayPaise, 0); XCTAssertNil(r.budgetDays); XCTAssertEqual(r.verdict, .eatsSavings)
+    }
+    func testWordingHelper() {
+        XCTAssertEqual(AffordResult.days(1.5), "1.5"); XCTAssertEqual(AffordResult.days(3.0), "3")
+    }
+}
