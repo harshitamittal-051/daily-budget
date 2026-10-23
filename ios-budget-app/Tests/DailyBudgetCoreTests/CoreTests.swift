@@ -123,3 +123,41 @@ final class AffordTests: XCTestCase {
         XCTAssertEqual(AffordResult.days(1.5), "1.5"); XCTAssertEqual(AffordResult.days(3.0), "3")
     }
 }
+
+final class CreditsTests: XCTestCase {
+    func d(_ y: Int, _ m: Int, _ day: Int) -> Date { Calendar(identifier: .gregorian).date(from: DateComponents(year: y, month: m, day: day))! }
+    func rs(_ n: Int64) -> Int64 { n * 100 }
+    var plan: Plan { Plan(salaryPaise: rs(60000), savingsGoalPaise: rs(10000), fixedExpensesPaise: rs(20000), cycleStart: d(2025, 9, 30), cycleEnd: d(2025, 10, 30)) }
+
+    func testRefundIsDetected() throws {
+        let t = try XCTUnwrap(SmsParser.parse("Rs 1,299.00 refunded to your A/c XX1234 on 05-11-26 for AMAZON order. Ref 4421"))
+        XCTAssertEqual(t.type, .credit); XCTAssertTrue(t.isRefund); XCTAssertFalse(t.isSalary)
+    }
+    func testPlainCreditIsNeitherSalaryNorRefund() throws {
+        let t = try XCTUnwrap(SmsParser.parse("Rs 2,000 credited to your a/c XX1234 on 05-11-26 by UPI-RAHUL SHARMA. UPI Ref 123"))
+        XCTAssertEqual(t.type, .credit); XCTAssertFalse(t.isRefund); XCTAssertFalse(t.isSalary)
+        XCTAssertEqual(t.merchant, "Rahul Sharma")
+    }
+    func testSalaryIsNotARefund() throws {
+        let t = try XCTUnwrap(SmsParser.parse("INR 60,000.00 credited to your A/c XX1234 on 30-11-26 by NEFT-ACME CORP SALARY"))
+        XCTAssertTrue(t.isSalary); XCTAssertFalse(t.isRefund)
+    }
+    func testDefaultAllocation() {
+        XCTAssertEqual(Credits.defaultAllocation(isSalary: true, isRefund: false), .none)
+        XCTAssertEqual(Credits.defaultAllocation(isSalary: false, isRefund: true), .pool)
+        XCTAssertEqual(Credits.defaultAllocation(isSalary: false, isRefund: false), .pending)
+    }
+    func testAddingToPoolRaisesTodaysBudgetImmediately() {
+        let before = BudgetEngine.dayBudget(plan: plan, spentBefore: 0, spentToday: 0, today: d(2025, 9, 30))
+        let after = BudgetEngine.dayBudget(plan: plan.withExtraPool(rs(3000)), spentBefore: 0, spentToday: 0, today: d(2025, 9, 30))
+        XCTAssertEqual(before.allowancePaise, rs(1000))
+        XCTAssertEqual(after.allowancePaise, rs(1100))      // (30,000 + 3,000) / 30
+        XCTAssertEqual(plan.withExtraPool(rs(3000)).savingsGoalPaise, rs(10000))   // savings goal untouched
+    }
+    func testPoolBonusMidMonthSpreadsOverRemainingDays() {
+        // Day 10, 10,000 already spent, 20,000 left over 20 days = 1,000/day; +4,000 -> 1,200/day.
+        let day = d(2025, 10, 10)
+        XCTAssertEqual(BudgetEngine.dayBudget(plan: plan, spentBefore: rs(10000), spentToday: 0, today: day).allowancePaise, rs(1000))
+        XCTAssertEqual(BudgetEngine.dayBudget(plan: plan.withExtraPool(rs(4000)), spentBefore: rs(10000), spentToday: 0, today: day).allowancePaise, rs(1200))
+    }
+}

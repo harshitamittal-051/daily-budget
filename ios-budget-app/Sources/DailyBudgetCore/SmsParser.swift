@@ -15,6 +15,7 @@ public enum SmsParser {
     private static let sourceRe = rx(
         #"\b(?:by|from)\s+(?:neft|imps|upi|rtgs)?[-/ ]*([A-Za-z][A-Za-z0-9&.'\- ]{2,30}?)(?=\s+(?:on|ref|via|txn|avl|bal)\b|[.,;(]|\s*$)"#)
     private static let salaryRe = rx(#"\bsalary\b|\bsal\b"#)
+    private static let refundRe = rx(#"\b(refund(?:ed)?|reversal|reversed|chargeback)\b"#)
     private static let notMerchant: Set<String> = ["a/c", "ac", "account", "your", "you", "card", "bank", "self"]
 
     public static func parse(_ body: String, at time: Date = Date()) -> ParsedTxn? {
@@ -62,7 +63,8 @@ public enum SmsParser {
         }
 
         let isSalary = type == .credit && has(salaryRe, text)
-        return ParsedTxn(type: type, amountPaise: amount, merchant: merchant, method: method, time: time, isSalary: isSalary)
+        let isRefund = type == .credit && !isSalary && has(refundRe, text)
+        return ParsedTxn(type: type, amountPaise: amount, merchant: merchant, method: method, time: time, isSalary: isSalary, isRefund: isRefund)
     }
 
     private static func full(_ s: String) -> NSRange { NSRange(s.startIndex..., in: s) }

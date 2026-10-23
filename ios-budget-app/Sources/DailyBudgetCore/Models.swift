@@ -10,6 +10,7 @@ public struct ParsedTxn: Equatable {
     public var method: String
     public var time: Date
     public var isSalary: Bool
+    public var isRefund: Bool = false
 }
 
 public func rupeeString(_ paise: Int64) -> String {

@@ -20,6 +20,17 @@ It also says how many days of your daily budget the price equals. On iOS you can
 *"Can I afford something in Daily Budget?"* and it asks the price and answers out loud (also available as a Shortcuts action).
 Logic: `ios-budget-app/Sources/DailyBudgetCore/Afford.swift` (tests in `AffordTests`). The Android version is not built yet.
 
+## Money received: spend pool or savings?  (iOS first)
+When money comes into your account the app handles it by type:
+- **Salary**: starts a new month (you set the savings goal).
+- **Refund or reversal**: goes straight back into the spend pool automatically, and the daily budget updates.
+- **Anything else** (a friend pays you back, a gift, interest): the app asks. On iPhone the notification has two buttons, **Add to spend pool** and **Add to savings**, so you can answer without opening the app.
+  - *Spend pool*: the month's pool grows and today's budget (and every day after) rises immediately.
+  - *Savings*: adds to "saved this month" on top of your goal; the daily budget does not change.
+  - You can move a credit between the two later from the Savings section.
+
+Logic: `Credits.swift` (+ refund detection in `SmsParser.swift`), tests in `CreditsTests`. Android not built yet.
+
 ## How the budget works
 1. Salary lands (last day of month) → app asks **how much you want to save** (and optional fixed bills).
 2. `pool = salary − savings − fixed`, `daily = pool ÷ days until next payday`.

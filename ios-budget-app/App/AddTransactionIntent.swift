@@ -17,7 +17,7 @@ struct AddTransactionFromMessageIntent: AppIntent {
             return .result(dialog: "Not a new transaction.")
         }
         await Notifier.reschedule(store)
-        await Notifier.alertSpend(t, store: store)
+        if t.isDebit { await Notifier.alertSpend(t, store: store) } else { await Notifier.alertCredit(t, store: store) }
         return .result(dialog: "Logged.")
     }
 }

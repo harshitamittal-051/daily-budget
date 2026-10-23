@@ -63,6 +63,7 @@ struct DashboardView: View {
             if store.newSalary != nil || (store.plan.map { Date() >= $0.cycleEnd } ?? false) {
                 Button("New salary detected — tap to plan the new month", action: onNewMonth)
             }
+            CreditsCard()
             AffordCard()
             if let d = store.today() {
                 Section("Today's budget") {
@@ -72,6 +73,7 @@ struct DashboardView: View {
                     Text("Pool left: \(rupeeString(d.poolRemainingPaise)) for \(d.daysLeftInclusive) days").font(.footnote)
                 }
             }
+            SavingsCard()
             Section("Where your money went") {
                 let cats = store.byCategory(); let total = max(1, cats.reduce(0) { $0 + $1.1 })
                 ForEach(cats, id: \.0) { c in

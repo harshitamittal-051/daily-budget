@@ -1,9 +1,12 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct DailyBudgetApp: App {
     @StateObject private var store = Store.shared
     @Environment(\.scenePhase) private var phase
+
+    init() { UNUserNotificationCenter.current().delegate = NotificationRouter.shared }
 
     var body: some Scene {
         WindowGroup {
