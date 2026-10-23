@@ -7,24 +7,30 @@ struct CreditsCard: View {
 
     var body: some View {
         if !store.pendingCredits.isEmpty {
-            Section("Money received: where should it go?") {
+            VStack(alignment: .leading, spacing: 16) {
+                CardTitle(text: "Money received. Where should it go?", icon: "arrow.down.circle.fill", tint: Theme.warn)
                 ForEach(store.pendingCredits) { t in
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            Text(t.merchant.map { "From \($0)" } ?? "Credit")
+                            Text(t.merchant.map { "From \($0)" } ?? "Credit").font(.subheadline.weight(.medium))
                             Spacer()
-                            Text(rupeeString(t.amountPaise)).bold().monospacedDigit()
+                            Text(rupeeString(t.amountPaise)).font(Theme.rounded(24, .bold)).monospacedDigit()
                         }
-                        HStack {
-                            Button("Spend pool") { store.allocate(id: t.id, to: .pool) }.buttonStyle(.borderedProminent)
-                            Button("Savings") { store.allocate(id: t.id, to: .savings) }.buttonStyle(.bordered)
+                        HStack(spacing: 10) {
+                            Button { store.allocate(id: t.id, to: .pool) } label: {
+                                Label("Spend pool", systemImage: "wallet.pass.fill").frame(maxWidth: .infinity)
+                            }.buttonStyle(.borderedProminent).tint(Theme.brand)
+                            Button { store.allocate(id: t.id, to: .savings) } label: {
+                                Label("Savings", systemImage: "banknote.fill").frame(maxWidth: .infinity)
+                            }.buttonStyle(.bordered).tint(Theme.brand)
                         }
+                        .controlSize(.large)
                         Text("Spend pool raises today's budget and every day after it. Savings only adds to what you have saved.")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                    .padding(.vertical, 4)
                 }
             }
+            .card(tint: Theme.warn)
         }
     }
 }
@@ -36,14 +42,20 @@ struct SavingsCard: View {
     var body: some View {
         if let plan = store.plan {
             let extra = store.creditsTotal(.savings)
-            Section("Savings this month") {
-                row("Goal from salary", rupeeString(plan.savingsGoalPaise))
-                if extra > 0 { row("Extra from credits", "+" + rupeeString(extra)) }
-                row("Total saved", rupeeString(plan.savingsGoalPaise + extra), bold: true)
-                ForEach(store.resolvedCredits.filter { $0.time >= plan.cycleStart }) { t in
+            let credits = store.resolvedCredits.filter { $0.time >= plan.cycleStart }
+            VStack(alignment: .leading, spacing: 12) {
+                CardTitle(text: "Savings this month", icon: "leaf.fill", tint: Theme.good)
+                Text(rupeeString(plan.savingsGoalPaise + extra)).font(Theme.rounded(34, .bold)).foregroundStyle(Theme.good).monospacedDigit()
+                HStack {
+                    Text("Goal \(rupeeString(plan.savingsGoalPaise))").font(.subheadline).foregroundStyle(.secondary)
+                    if extra > 0 {
+                        Text("+ \(rupeeString(extra)) extra").font(.subheadline.weight(.medium)).foregroundStyle(Theme.good)
+                    }
+                }
+                ForEach(credits) { t in
                     HStack {
-                        VStack(alignment: .leading) {
-                            Text(t.merchant ?? (t.isRefund == true ? "Refund" : "Credit"))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(t.merchant ?? (t.isRefund == true ? "Refund" : "Credit")).font(.subheadline.weight(.medium))
                             Text("\(rupeeString(t.amountPaise)) → " + (t.allocation == .pool ? "spend pool" : "savings"))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
@@ -51,15 +63,12 @@ struct SavingsCard: View {
                         if t.isRefund != true {
                             Button(t.allocation == .pool ? "Move to savings" : "Move to pool") {
                                 store.allocate(id: t.id, to: t.allocation == .pool ? .savings : .pool)
-                            }.buttonStyle(.borderless).font(.caption)
+                            }.buttonStyle(.bordered).controlSize(.small).tint(Theme.brand)
                         }
                     }
                 }
             }
+            .card()
         }
-    }
-
-    private func row(_ l: String, _ v: String, bold: Bool = false) -> some View {
-        HStack { Text(l); Spacer(); Text(v).monospacedDigit().fontWeight(bold ? .semibold : .regular) }
     }
 }

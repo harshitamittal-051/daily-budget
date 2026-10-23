@@ -9,20 +9,39 @@ struct AffordCard: View {
     private var result: AffordResult? { store.afford(rupees: Int64(price) ?? 0) }
 
     var body: some View {
-        Section("Can I afford this?") {
-            HStack {
-                Text("₹").foregroundStyle(.secondary)
-                TextField("Price", text: $price).keyboardType(.numberPad)
-                    .font(.system(size: 28, weight: .semibold))
+        let r = result
+        VStack(alignment: .leading, spacing: 14) {
+            CardTitle(text: "Can I afford this?", icon: "questionmark.circle.fill", tint: r.map(color) ?? Theme.brand)
+
+            HStack(spacing: 6) {
+                Text("₹").font(Theme.rounded(26, .medium)).foregroundStyle(.secondary)
+                TextField("Price", text: $price).keyboardType(.numberPad).font(Theme.rounded(32, .bold))
             }
-            if let r = result {
-                Label(title(r), systemImage: icon(r)).font(.headline).foregroundStyle(color(r))
-                Text(r.summary).font(.subheadline)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.fieldFill))
+
+            HStack(spacing: 8) {
+                ForEach([500, 1500, 5000], id: \.self) { v in
+                    Button { price = String(v) } label: {
+                        Text(rupeeString(Int64(v) * 100)).font(.subheadline.weight(.medium))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.fieldFill))
+                    }.buttonStyle(.plain)
+                }
+            }
+
+            if let r {
+                HStack(spacing: 8) {
+                    Image(systemName: icon(r))
+                    Text(title(r)).font(Theme.rounded(17, .bold))
+                }
+                .foregroundStyle(color(r))
+                Text(r.summary).font(.subheadline).fixedSize(horizontal: false, vertical: true)
                 if r.verdict != .fitsToday {
-                    HStack {
-                        Text("Tomorrow").font(.caption).foregroundStyle(.secondary)
-                        Text("\(rupeeString(r.tomorrowNowPaise)) → \(rupeeString(r.tomorrowAfterPaise))")
-                            .font(.caption.monospacedDigit())
+                    HStack(spacing: 10) {
+                        compare("Tomorrow now", rupeeString(r.tomorrowNowPaise), Color.primary)
+                        Image(systemName: "arrow.right").foregroundStyle(.secondary)
+                        compare("After buying", rupeeString(r.tomorrowAfterPaise), color(r))
                     }
                 }
             } else {
@@ -30,6 +49,17 @@ struct AffordCard: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
+        .card(tint: r.map(color))
+        .animation(.easeOut(duration: 0.2), value: r?.verdict)
+    }
+
+    private func compare(_ label: String, _ value: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            Text(value).font(Theme.rounded(17, .bold)).foregroundStyle(tint).monospacedDigit()
+        }
+        .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.cardFill))
     }
 
     private func title(_ r: AffordResult) -> String {
@@ -48,9 +78,9 @@ struct AffordCard: View {
     }
     private func color(_ r: AffordResult) -> Color {
         switch r.verdict {
-        case .fitsToday: return .green
-        case .stretch: return .orange
-        case .eatsSavings: return .red
+        case .fitsToday: return Theme.good
+        case .stretch: return Theme.warn
+        case .eatsSavings: return Theme.bad
         }
     }
 }
