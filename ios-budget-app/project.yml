@@ -1,0 +1,17 @@
+# Generate the Xcode project with:  brew install xcodegen && xcodegen
+name: DailyBudget
+options: { bundleIdPrefix: com.dailybudget, deploymentTarget: { iOS: "17.0" } }
+packages:
+  DailyBudgetCore: { path: . }
+targets:
+  DailyBudget:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies: [{ package: DailyBudgetCore }]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dailybudget.app
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: "5.9"

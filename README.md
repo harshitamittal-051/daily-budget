@@ -1,0 +1,40 @@
+# Daily Budget — Android + iOS
+
+Reads your bank/UPI transaction messages, splits your salary (minus what you want to save) into a daily budget,
+and tells you every morning what you can spend, every night how you did, and where every rupee went.
+
+| Folder | What |
+|---|---|
+| `android-budget-app/` | Kotlin + Jetpack Compose. Reads SMS directly (inbox scan + live receiver). |
+| `ios-budget-app/` | SwiftUI. iOS cannot read SMS, so messages arrive via a Shortcuts automation (below). |
+
+Both share the same logic, ported 1:1 and covered by the same tests: SMS parser, merchant categorizer, budget engine.
+
+## How the budget works
+1. Salary lands (last day of month) → app asks **how much you want to save** (and optional fixed bills).
+2. `pool = salary − savings − fixed`, `daily = pool ÷ days until next payday`.
+3. **Morning 8:00:** "Today's budget: ₹X".
+4. **Night 22:00:** "Budget ₹X, spent ₹Y, under/over by ₹Z. Tomorrow you can spend ₹W."
+   The revision is automatic: today's allowance is always `(pool − spent so far) ÷ days left`.
+5. A live alert fires on each debit: amount → merchant (category), and what's left today.
+6. Credit-card bill payments are excluded (the card purchases were already counted). Tap any transaction to exclude it.
+7. A new salary credit is detected and prompts you to plan the next month.
+
+## Android
+Needs Android Studio (Gradle wrapper not checked in; open the folder and let it sync). `minSdk 26`.
+Grant SMS + notification permissions on first launch. Sideload only: Google Play restricts READ_SMS.
+Core tests (no Android SDK needed): `cd android-budget-app && gradle :core:test`
+
+## iOS
+Apple does not allow any app to read SMS. Workaround that works: **Shortcuts → Automation**
+1. Shortcuts app → Automation → New → **Message** → Message Contains `debited` (add more automations for `spent`, `credited`, `sent Rs`).
+2. Action: **Add Transaction from Message** (from Daily Budget), Message = *Shortcut Input*.
+3. Set **Run Immediately** and turn off "Notify When Run".
+Also: manual "+" entry. The 8am/10pm notifications are scheduled with text computed at schedule time and refreshed whenever you open the app or a message arrives.
+Build: `brew install xcodegen && cd ios-budget-app && xcodegen && open DailyBudget.xcodeproj`. Core tests: `swift test`.
+
+## Status / honest caveats
+- Android `:core` tests: **16/16 pass**. Android `app` module and **all iOS code were written without a compiler** (no Android SDK / Swift here) — expect small build fixes on first open.
+- Parser covers common HDFC/ICICI/SBI/Axis/UPI formats; send me messages it misses and we add cases.
+- "Which app you paid with" = merchant/VPA + payment method from the SMS. Capturing GPay/PhonePe notifications would be a follow-up (Android NotificationListener).
+- Assumes INR. Data stays on device.
